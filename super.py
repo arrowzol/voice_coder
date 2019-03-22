@@ -7,149 +7,109 @@ import time
 import re
 import sys
 import exit_now as en
-
+import yaml
 
 _pause = 0.001
 Typeable.MOD_DELAY = _pause
 
-#---------------------------------------------------------------------------
+########################################
+## utility functions
+########################################
 
-ESCAPE_WORD = "+simon"
+def flatten(l):
+    r = []
+    for ll in l:
+        r.extend(ll)
+    return r
 
-# WORD syntax
-# [-] [+] [&] [_] <letters>
-#   [-] - don't print the trailing space from the previous word
-#   [+] - print a trailing space after this word later on (can be removed by the next word)
-#   [&] - is a key
-#   [_] - a "keyword", start a new phrase
-metaWords = {
-    # modifier keys
-    "+caps":            "_caps",
-    "+lift":            "_lift",
-    "+jab":             "_jab",
-    "+jive":            "_jive",
 
-    # word mangling
-    "+camel":           "_camel",
-    "+lama":            "_lama",
-    "+rhino":           "_rhino",
-    "+squirrel":         "_squirrel",
+########################################
+## read configuration data
+########################################
 
-    # alphabet
-    "+al":              "-a",
-    "+baz":             "-b",
-    "+crow":            "-c",
-    "+dow":             "-d",
-    "+eel":             "-e",
-    "+fox":             "-f",
-    "+grays":           "-g",
-    "+hoax":            "-h",
-    "+imp":             "-i",
-    "+junk":            "-j",
-    "+kong":            "-k",
-    "+loon":            "-l",
-    "+mike":            "-m",
-    "+nack":            "-n",
-    "+booz":            "-o",
-    "+punk":            "-p",
-    "+quox":            "-q",
-    "+raz":             "-r",
-    "+sing":            "-s",
-    "+tunk":            "-t",
-    "+munk":            "-u",
-    "+vack":            "-v",
-    "+wump":            "-w",
-    "+cross":           "-x",
-    "+ying":            "-y",
-    "+zoo":             "-z",
+with open("super.yaml") as yaml_file:
+    yaml_data = yaml.load(yaml_file, Loader=yaml.Loader)
 
-    # special characters
-    "+scape":           "/-_\x1b",
-    "+escape":          "/-_\x1b",
-    "+slap":            "-_\r",
-    "+kick":            "-_\t",
-    "+gap":             "-_ ",
-    "+dot":             "-_.",
-    "+rock":            "-_(",
-      # conflict rack/whack
-      "+rack":          "-+_)",
-    "+brick":           "-_[",
-      "+brack":         "-+_]",
-    "+squirm":          "_{",
-      "+squack":        "-_}",
-    "+tent":            "-_^",
-    "+bent":            "-_<",
-      "+vent":          "-_>",
-    "+slash":           "-_/",
-    "+blash":           "-_\\",
-    "+quotes":          "-_\"",
-    "+quote":           "-_'",
-    "+ticker":          "-_`",
-    "+fist":            "-_@",
-    "+bench":           "-_&",
-    "+boom":            "-_!",
-    "+bang":            "-_!",
-    "+ching":           "-_$",
-    "+dasher":          "-_-",
-    "+adder":           "-_+",
-    "+quest":           "-_?",
-    "+sharp":           "-_#",
-    "+spark":           "-_*",
-    "+sparker":         "+_*",
-    "+under":           "-__",
-    "+wormey":          "-_~",
-    "+pipe":            "-_|",
-    "+piper":           "-_ | ",
-    "+pox":             "-_%",
-    "+quiv":            "-_=",
-    "+clunk":           "-+_,",
-    "+clink":           "-_:",
-    "+slim":            "-+_;",
+escapeWord = yaml_data['escape']
+escapeWordPlus = "+" + escapeWord
 
-    # "one" and "two" left out because they are often part of dictation
-#    "+zero":            "-_0",
-#    "+three":           "-_3",
-#    "+four":            "-_4",
-#    "+five":            "-_5",
-#    "+six":             "-_6",
-#    "+seven":           "-_7",
-#    "+eight":           "-_8",
-#    "+nine":            "-_9",
+replayWord = yaml_data['replay']
+replayWordPlus = "+" + replayWord
 
-    # bash commands
-    "+scat":            "-_cd ",
-    "+dupe":            "-_cp ",
-    "+trout":           "-_mv ",
-    "+zap":             "-_rm ",
-    "+ground":          "_~/",
-    "+dark":            "_../",
-    "+dirt":            "_./",
-    "+maven":           "-_mvn ",
+substitutions = {}
+for f, t in [(d['from'], d['to']) for d in yaml_data['substitutions']]:
+    firstWord = f[0]
+    if firstWord in substitutions:
+        substitutions[firstWord].append([f[1:], t])
+    else:
+        substitutions[firstWord] = [[f[1:], t],]
 
-    # General programming help
-    "+slam":            "-();",
-    "+slamo":            "-<>();",
-}
+mangleMap = {}
 
-wordChains = {
-    "-vim " : [["+diff"], "vimdiff "],
-    "-vim " : [["+save"], "-_:wq\n"],
-    "tar " : [["+get"], "target "],
-    "+dot" : [["+pie"], "-_.py "],
-    "+num" : [["+pie"], "+numpy "],
-}
+for k, v in yaml_data['mangles'].items():
+    delim = v.get("delimiter", "")
+    xform = v.get("xform", "None")
+    firstXform = v.get("firstXform", xform)
+    mangleMap[k] = (delim, eval(firstXform), eval(xform))
 
-mangleMap = {
-    "_camel": ('',  None,  lambda x : x[0].upper() + x[1:]),
-    "_lama": ('', lambda x : x[0].upper() + x[1:], lambda x : x[0].upper() + x[1:]),
-    "_rhino": ('_',  unicode.upper, unicode.upper),
-    "_squirrel": ('_',  unicode.lower, unicode.lower),
-    "_unused": ('-', None,  None ),
-    "_despace": ('', None,  None ),
-    "_dotword": ('.',  None,  None),
-}
+commandWords = yaml_data['commands']
 
-KEY = Key("")
+plainWords = yaml_data['words']
+plainWords.extend((wordWithPlus[1:] for wordWithPlus in flatten((d['from'] for d in yaml_data['substitutions']))))
+plainWords.append(escapeWord)
+plainWords.append(replayWord)
+plainWords = set(plainWords)
+
+########################################
+## stages of processing speach
+########################################
+
+escaped = False
+def substituteWords(words):
+    global escaped
+
+    # replace any word chains
+    words2 = []
+    i = 0
+    while i < len(words):
+        word = words[i]
+
+        if escaped:
+            words2.append(word)
+            escaped = False
+        elif word == escapeWordPlus:
+            escaped = True
+        else:
+            if word in substitutions:
+                for otherWords, replaceWord in substitutions[word]:
+                    if not otherWords or words[i+1:i+len(otherWords)+1] == otherWords:
+                        word = replaceWord
+                        i += len(otherWords)
+                        break
+            words2.append(word)
+        i += 1
+    words = words2
+
+    return words2
+
+
+KEY_PATTERN = re.compile("^[*/]?[-]?[+]?_")
+def phraseSplit(words):
+    "split a list of words into a list of 'phrases', each phrase being a list of words to be processed separately"
+    phrases = []
+    phrase = []
+    for word in words:
+        if KEY_PATTERN.match(word):
+            phrase = []
+            phrase.append(word)
+            phrases.append(phrase)
+        else:
+            if not phrase:
+                phrases.append(phrase)
+            phrase.append(word)
+    return phrases
+
+
 SHIFT_DOWN = [(Keyboard.shift_code, True, Typeable.MOD_DELAY)]
 SHIFT_UP = [(Keyboard.shift_code, False, Typeable.MOD_DELAY)]
 CTRL_DOWN = [(Keyboard.ctrl_code, True, Typeable.MOD_DELAY)]
@@ -162,7 +122,6 @@ modifierMap = {
     "_jab":  ('soon', CTRL_DOWN, CTRL_UP),
     "_jive":  ('soon', ALT_DOWN, ALT_UP),
 }
-
 
 voiceEvents = []
 undoSoon = []
@@ -262,59 +221,6 @@ def processPhrase(words):
         wasTrailingSpace = True
     return events
 
-def flatten(l):
-    r = []
-    for ll in l:
-        r.extend(ll)
-    return r
-
-KEY_PATTERN = re.compile("^[*/]?[-]?[+]?_")
-def phraseSplit(words):
-    phrases = []
-    phrase = []
-    for word in words:
-        if KEY_PATTERN.match(word):
-            phrase = []
-            phrase.append(word)
-            phrases.append(phrase)
-        else:
-            if not phrase:
-                phrases.append(phrase)
-            phrase.append(word)
-    return phrases
-
-escaped = False
-def addMetaWords(words):
-    global escaped
-
-    # replace any word chains
-    words2 = []
-    i = 0
-    while i < len(words):
-        word = words[i]
-        if word in wordChains:
-            others, replaceWord = wordChains[word]
-            if words[i+1:i+len(others)+1] == others:
-                word = replaceWord
-                i += len(others)
-        words2.append(word)
-        i += 1
-    words = words2
-
-    # replace meta words with their meta values
-    words2 = []
-    for word in words:
-        if escaped:
-            words2.append(word)
-            escaped = False
-        elif word == ESCAPE_WORD:
-            escaped = True
-        else:
-            words2.append(metaWords.get(word, word))
-    words = words2
-
-    return words2
-
 def hide(word):
     if word and word.startswith('*'):
         return '*'*(len(word)-1)
@@ -323,9 +229,9 @@ def hide(word):
 
 def processText(text):
     words = flatten(text)
-    print "RAW WORDS: [" + "|".join([repr(str(hide(word)))[1:-1] for word in words]) + "]"
-    words = addMetaWords(words)
-    print "META WORDS: [" + "|".join([repr(str(hide(word)))[1:-1] for word in words]) + "]"
+    print("RAW WORDS: [" + "|".join([repr(str(hide(word)))[1:-1] for word in words]) + "]")
+    words = substituteWords(words)
+    print("META WORDS: [" + "|".join([repr(str(hide(word)))[1:-1] for word in words]) + "]")
     phrases = phraseSplit(words)
 #    print "PHRASES:"
 #    print "".join(["  [" + "|".join([repr(str(word))[1:-1] for word in words]) + "]\n" for words in phrases]),
@@ -342,8 +248,8 @@ def startMacro(words):
     global macroOn, voiceEvents, wasTrailingSpace
     if words == ['+start', '+macro']:
         macroOn = True
-        print "-----------------------"
-        print "START RECORDING MACRO"
+        print("-----------------------")
+        print("START RECORDING MACRO")
         voiceEvents = []
         wasTrailingSpace = False
         return True
@@ -351,7 +257,7 @@ def stopMacro(words):
     global macroOn, macroEvents, voiceEvents, wasTrailingSpace
     if macroOn and len(words) >= 3 and words[:2] == ['+stop', '+macro']:
         words = tuple(words[2:])
-        print '----- STOP MACRO %s'%(repr(words))
+        print('----- STOP MACRO %s'%(repr(words)))
         macros[words] = macroEvents
         macroEvents = []
         voiceEvents = []
@@ -365,9 +271,9 @@ def playMacro(words):
         foundEvents = macros.get(words, None)
         if foundEvents:
             wasTrailingSpace = False
-            print '----- PLAY MACRO %s'%(repr(words))
+            print('----- PLAY MACRO %s'%(repr(words)))
         else:
-            print "COULD NOT PLAY MACRO %s from set %s"%(words, macros.keys())
+            print("COULD NOT PLAY MACRO %s from set %s"%(words, macros.keys()))
         voiceEvents = foundEvents
     
 def processMacros():
@@ -375,8 +281,8 @@ def processMacros():
 
     if len([1 for x in voiceEvents if x[0] != 'w']) == 0:
         words = [word for words in voiceEvents if words[0] == 'w' for word in words[1]]
-        if words == ['+rip']:
-            print "REPLAY"
+        if words == [replayWordPlus]:
+            print("REPLAY")
             for key, payload in eventHistory:
                 if key == 'k':
                     keyboard.keyboard.send_keyboard_events(payload)
@@ -406,9 +312,9 @@ def processVoiceEvents():
         keyboard.keyboard.send_keyboard_events(undoHold)
         undoHold = []
     wordLists = []
-    print "-----------------------"
-    if voiceEvents == [('w', ['+rip'])]:
-        print "REPLAY"
+    print("-----------------------")
+    if voiceEvents == [('w', [replayWordPlus])]:
+        print("REPLAY")
         for key, payload in eventHistory:
             if key == 'k':
                 keyboard.keyboard.send_keyboard_events(payload)
@@ -432,23 +338,23 @@ def processVoiceEvents():
             if key == 'k':
                 spec, events, name = payload
                 if escaped:
-                    wordLists.append((ESCAPE_WORD, name))
+                    wordLists.append((escapeWordPlus, name))
                     escaped = False
                 else:
-                    print "KEY:", spec
+                    print("KEY:", spec)
                     keyboard.keyboard.send_keyboard_events(events)
                     eventHistory.append(('k', events))
             elif key == 'a':
                 action, data, name = payload
                 if escaped:
-                    wordLists.append((ESCAPE_WORD, name))
+                    wordLists.append((escapeWordPlus, name))
                     escaped = False
                 else:
-                    print "EXEC:", name
-                    try:
-                        action._execute(data)
-                    except Exception, e:
-                        print "Exception:", e
+                    print("EXEC:", name)
+#                    try:
+#                        action._execute(data)
+#                    except Exception, e:
+#                        print("Exception:", e)
                     eventHistory.append(('a', (action, data)))
                     time.sleep(0.05)
             time.sleep(0.02)
@@ -528,251 +434,33 @@ class ReleaseModifiers(ActionBase):
             keyboard.keyboard.send_keyboard_events(undoHold)
             undoHold = []
 
-config            = Config("super edit")
-config.cmd        = Section("Language section")
-config.cmd.map    = Item(
-    {
-        "snooze":                           Function(lambda : en.exit_now()),
-    # escape meta-words with this, should be the same as ESCAPE_WORD
-    "simon":                            RecordWord("+simon"),
+listenMap = {
+    # quick exit
+    "snooze":                           Function(lambda : en.exit_now()),
+
+    "zook":                             ReleaseModifiers(),
 
     # dictation
+    # meant to catch everything, but some words need help being recognized
     "<text>":                           RecordDictation("%(text)s"),
 
-    # conflict: bean/bin
-#    "bean":                             RecordWord("+bean"),
-    # conflict: junk/chunk
-#    "chunk":                            RecordWord("+chunk"),
-    "zap":                              RecordWord("+zap"),
-    "add":                              RecordWord("+add"),
-    "line":                             RecordWord("+line"),
-    "trim":                             RecordWord("+trim"),
-    "false":                            RecordWord("+false"),
-    "true":                             RecordWord("+true"),
-    "string":                           RecordWord("+string"),
-    # conflict: left/lift
-#    "left":                             RecordWord("+left"),
-    "run":                              RecordWord("+run"),
-    "request":                          RecordWord("+request"),
-    "print":                            RecordWord("+print"),
-    "response":                         RecordWord("+response"),
-    "repeater":                         RecordWord("+repeater"),
-    "get":                              RecordWord("+get"),
-    "append":                           RecordWord("+append"),
-    "other":                            RecordWord("+other"),
-    "group":                            RecordWord("+group"),
-    "age":                              RecordWord("+age"),
-    "else":                             RecordWord("+else"),
-    "open":                             RecordWord("+open"),
-    "none":                             RecordWord("+none"),
-    "read":                             RecordWord("+read"),
-    "then":                             RecordWord("+then"),
-    "body":                             RecordWord("+body"),
-    "table":                            RecordWord("+table"),
-    "this":                             RecordWord("+this"),
-    "echo":                             RecordWord("+echo"),
-    "scan":                             RecordWord("+scan"),
-    "type":                             RecordWord("+type"),
-    "types":                            RecordWord("+types"),
-    "threshold":                        RecordWord("+threshold"),
-    "boolen":                           RecordWord("+boolen"),
-    "optimizer":                        RecordWord("+optimizer"),
-    "optimize":                         RecordWord("+optimize"),
-    "build":                            RecordWord("+build"),
-    "avoid":                            RecordWord("+avoid"),
-    "is":                               RecordWord("+is"),
-    "break":                            RecordWord("+break"),
-    "line":                             RecordWord("+line"),
-    "phone":                            RecordWord("+phone"),
-    "base":                             RecordWord("+base"),
-    "less":                             RecordWord("+less"),
-    "describe":                         RecordWord("+describe"),
-    "rank":                             RecordWord("+rank"),
-    "row":                              RecordWord("+row"),
-    "stream":                           RecordWord("+stream"),
-    "socket":                           RecordWord("+socket"),
-    "sock":                             RecordWord("+sock"),
-    "token":                            RecordWord("+token"),
-    "tokenize":                         RecordWord("+tokenize"),
-    "metro":                            RecordWord("+metro"),
-    "boolean":                          RecordWord("+boolean"),
-    "void":                             RecordWord("+void"),
-    "length":                           RecordWord("+length"),
-    "plug in":                          RecordWord("+plugin"),
-    "array":                            RecordWord("+array"),
-    "list":                             RecordWord("+list"),
-    "eenume":                           RecordWord("+enum"),
-    "sign":                             RecordWord("+sign"),
-    "case":                             RecordWord("+case"),
-    "enable":                           RecordWord("+enable"),
-    "ignore":                           RecordWord("+ignore"),
-    "mangle":                           RecordWord("+mangle"),
-    "class":                            RecordWord("+class"),
-    "defined":                          RecordWord("+defined"),
-    "bit":                              RecordWord("+bit"),
-    "cause":                            RecordWord("+cause"),
-    "find":                             RecordWord("+find"),
-    "import":                           RecordWord("+import"),
-    "done":                             RecordWord("+done"),
-    "iterator":                         RecordWord("+iterator"),
-    "merge":                            RecordWord("+merge"),
-    "cat":                              RecordWord("+cat"),
-    "sequence":                         RecordWord("+sequence"),
-    "eclipse":                          RecordWord("+eclipse"),
-    "rows":                             RecordWord("+rows"),
-    "float":                            RecordWord("+float"),
-    "root":                             RecordWord("+root"),
-    "column":                           RecordWord("+column"),
-    "cipher":                           RecordWord("+cipher"),
-    "logger":                           RecordWord("+logger"),
-    "log":                              RecordWord("+log"),
-    "drop":                             RecordWord("+drop"),
-    "buffer":                           RecordWord("+buffer"),
-    "buffered":                         RecordWord("+buffered"),
-    "queue":                            RecordWord("+queue"),
-    "queues":                           RecordWord("+queues"),
-    "engine":                           RecordWord("+engine"),
-    "raw":                              RecordWord("+raw"),
-    "borrow":                           RecordWord("+borrow"),
-    "borrowed":                         RecordWord("+borrowed"),
-    "inventory":                        RecordWord("+inventory"),
-    "quiz":                             RecordWord("+quiz"),
-    "velocity":                         RecordWord("+velocity"),
-    "accessor":                         RecordWord("+accessor"),
-    "double":                           RecordWord("+double"),
-    "mock":                             RecordWord("+mock"),
-    "meta":                             RecordWord("+meta"),
-    "trunk":                            RecordWord("+trunk"),
-    "count":                            RecordWord("+count"),
-    "warm":                             RecordWord("+warm"),
-    "share":                            RecordWord("+share"),
-    "select":                           RecordWord("+select"),
-    "order":                            RecordWord("+order"),
-    "tag":                              RecordWord("+tag"),
-    "tags":                             RecordWord("+tags"),
-    "decryption":                       RecordWord("+decryption"),
-    "earth":                            RecordWord("+earth"),
-    "octet":                            RecordWord("+octet"),
-    "octets":                           RecordWord("+octets"),
-#    "fork":                             RecordWord("+fork"),
-    "decryption":                       RecordWord("+decryption"),
-    "histogram":                        RecordWord("+histogram"),
-    "will":                             RecordWord("+will"),
-    "dictionary":                       RecordWord("+dictionary"),
-    "graph":                            RecordWord("+graph"),
-    "hide":                             RecordWord("+hide"),
-    "cache":                            RecordWord("+cache"),
-    "key":                              RecordWord("+key"),
-    "size":                             RecordWord("+size"),
-    "out":                              RecordWord("+out"),
-    "span":                             RecordWord("+span"),
-    "stop":                             RecordWord("+stop"),
-    "pie":                              RecordWord("+pie"),
-    "shape":                            RecordWord("+shape"),
-    "make":                             RecordWord("+make"),
-    "python":                           RecordWord("+python"),
-    "work":                             RecordWord("+work"),
-    "color":                            RecordWord("+color"),
-    "sink":                             RecordWord("+sink"),
-    "java":                             RecordWord("+java"),
-    # interference: main/name
-#    "main":                             RecordWord("+main"),
-    "coalesce":                         RecordWord("+coalesce"),
-    "file":                             RecordWord("+file"),
-    "empty":                            RecordWord("+empty"),
-    "hash":                             RecordWord("+hash"),
-    "normalize":                        RecordWord("+normalize"),
-    "with":                             RecordWord("+with"),
-    "top":                              RecordWord("+top"),
-    "macro":                            RecordWord("+macro"),
-    "tool":                             RecordWord("+tool"),
-    "divide":                           RecordWord("+divide"),
-    "error":                            RecordWord("+error"),
-    "link":                             RecordWord("+link"),
-    "obscure":                          RecordWord("+obscure"),
-    "method":                           RecordWord("+method"),
-    "inner":                            RecordWord("+inner"),
-    "outer":                            RecordWord("+outer"),
-    "flush":                            RecordWord("+flush"),
-    "headers":                          RecordWord("+headers"),
-    "header":                           RecordWord("+header"),
-    "split":                            RecordWord("+split"),
-    "lines":                            RecordWord("+lines"),
-    "close":                            RecordWord("+close"),
-    "service":                          RecordWord("+service"),
-    "clone":                            RecordWord("+clone"),
-    "fetch":                            RecordWord("+fetch"),
-    "origin":                           RecordWord("+origin"),
-    "parse":                            RecordWord("+parse"),
-    "parsed":                           RecordWord("+parsed"),
-    "pandas":                           RecordWord("+pandas"),
-    "global":                           RecordWord("+global"),
-    "device":                           RecordWord("+device"),
-    "tail":                             RecordWord("+tail"),
-    "jira":                             RecordWord("+jira"),
-    "cookie":                           RecordWord("+cookie"),
-    "rest":                             RecordWord("+rest"),
-    "devin":                            RecordWord("+devin"),
-    "tunnel":                           RecordWord("+tunnel"),
-    "pause":                            RecordWord("+pause"),
-    "odin":                             RecordWord("+odin"),
-    "brazil":                           RecordWord("+brazil"),
-    "tab":                              RecordWord("+tab"),
-    "weight":                           RecordWord("+weight"),
-    "height":                           RecordWord("+height"),
-    "width":                            RecordWord("+width"),
-    "freight":                          RecordWord("+freight"),
-    "ship":                             RecordWord("+ship"),
-    "lot":                              RecordWord("+lot"),
-    "pallet":                           RecordWord("+pallet"),
-    "pallets":                          RecordWord("+pallets"),
-    "client":                           RecordWord("+client"),
-    "vendor":                           RecordWord("+vendor"),
-    "carton":                           RecordWord("+carton"),
-    "unstacked":                        RecordWord("+unstacked"),
-    "pickup":                           RecordWord("+pickup"),
-    "blob":                             RecordWord("+blob"),
-    "address":                          RecordWord("+address"),
-    "console":                          RecordWord("+console"),
-    "forwarding":                       RecordWord("+forwarding"),
-    "carrier":                          RecordWord("+carrier"),
-    "amazon":                           RecordWord("+amazon"),
-    "one day":                          RecordWord("+one day"),
-
-    # Greek letters
-    "alpha":                            RecordWord("+alpha"),
-    # conflict: beta/data
-    "beta":                             RecordWord("+beta"),
-    "data":                             RecordWord("+data"),
-    "theta":                            RecordWord("+theta"),
-    "lambda":                           RecordWord("+lambda"),
-
-    # Alternatives
+    # Alternatives to conflicts
     "conjunction":                      RecordWord("+and"),
     "write as in out":                  RecordWord("+write"),
-#    "skip":                             RecordWord("+skip"),
 
-    # Lingo
+    # conflict: bean/bin
+    "plug in":                          RecordWord("+plugin"),
+    "eenume":                           RecordWord("+enum"),
+
+    "sink":                             RecordWord("+sync"),
+    # conflict: main/name
+    "sub stir":                         RecordWord("+substr"),
+    "A. sin":                           RecordWord("+ASIN"),
+
     # conflict: diff/def
-    "diff":                             RecordWord("+diff"),
     "jay sawn":                         RecordWord("+json"),
     "dee dupe":                         RecordWord("+dedup"),
-#    "hack":                             RecordWord("+hack"),
-    "zip":                              RecordWord("+zip"),
-    "template":                         RecordWord("+template"),
-    "raise":                            RecordWord("+raise"),
     "to do":                            RecordWord("+TODO"),
-    "hana":                             RecordWord("+hana"),
-    "byte":                             RecordWord("+byte"),
-    "bytes":                            RecordWord("+bytes"),
-    "iterate":                          RecordWord("+iterate"),
-    "iterator":                         RecordWord("+iterator"),
-    "iterable":                         RecordWord("+iterable"),
-    # conflict: dev/def
-    #"dev":                              RecordWord("+dev"),
-    "config":                           RecordWord("+config"),
-    "parens":                           RecordWord("+parens"),
-    "bin":                              RecordWord("+bin"),
     # conflict: column/k/com
     "dot com":                          RecordWord("-_.com"),
     "ex per":                           RecordWord("+expr"),
@@ -780,162 +468,28 @@ config.cmd.map    = Item(
     "ID":                               RecordWord("+id"),
     "you till":                         RecordWord("+util"),
     "you are al":                       RecordWord("+url"),
+    "you are el":                       RecordWord("+url"),
     "S. S. L.":                         RecordWord("+ssl"),
     "U. R. L.":                         RecordWord("+url"),
     "J. M. S.":                         RecordWord("+jms"),
     "H. T. T. P.":                      RecordWord("+http"),
     "H. T. T. P. S.":                   RecordWord("+https"),
-    "serialize":                        RecordWord("+serialize"),
-    "serializable":                     RecordWord("+serializable"),
     "yah mole":                         RecordWord("+yaml"),
     "ex later":                         RecordWord("+xlat"),
-#    "init":                             RecordWord("+init"),
-    #"sync":                             RecordWord("+sync"),
-    # contact: lib/lambda/link
-    "lib":                              RecordWord("+lib"),
-#    "drools":                           RecordWord("+drools"),
-#    "null":                             RecordWord("+null"),
-#    "rule":                             RecordWord("+rule"),
-#    "rules":                            RecordWord("+rules"),
     "gitter":                           RecordWord("+git", "+gitter"),
-#    "role":                             RecordWord("+role"),
-    "auth":                             RecordWord("+auth"),
-    "jar":                              RecordWord("+jar"),
-    "num":                              RecordWord("+num"),
+    "ree base":                         RecordWord("+rebase"),
     "poe joe":                          RecordWord("+pojo"),
-    "char":                             RecordWord("+char"),
-    "entry":                            RecordWord("+entry"),
-    "kubernetes":                       RecordWord("+kubernetes"),
-    "pull":                             RecordWord("+pull"),
-    "blank":                            RecordWord("+blank"),
-#    "pool":                             RecordWord("+pool"),
     "E. val":                           RecordWord("+eval"),
     "in foe sehk":                      RecordWord("+info-sec"),
     "pie charm":                        RecordWord("+pycharm"),
-    "len":                              RecordWord("+len"),
-
-    # Troublesome for bash
-    # conflict: ping/bang
-    "ping":                             RecordWord("ping "),
-    # conflict: quota/quota hana/quarter/quote tar
-    "quota":                            RecordWord("+quota"),
-    "deploy":                           RecordWord("+deploy"),
-    "show":                             RecordWord("+show"),
-    "clean":                            RecordWord("+clean"),
-    "all":                              RecordWord("+all"),
-    # conflict: curl/cron
-    "curl":                             RecordWord("curl "),
-    # conflict kill/tail
-    "kill":                             RecordWord("kill "),
-    "ant":                              RecordWord("ant "),
-    "maven":                            RecordWord("+maven"),
-    # conflict: bash/blash/baz
-    "bash":                             RecordWord("+bash"),
-    "dupe":                             RecordWord("+dupe"),
-    "trout":                            RecordWord("+trout"),
-
-    # special commands
-    # conflict: rip/grep
-    "rip":                             RecordWord("+rip"),
-
-    # modifier keys (meta words)
-    "caps":                             RecordWord("+caps"),
-    # conflict: left/lift
-    "lift":                             RecordWord("+lift"), # shift
-    "jab":                              RecordWord("+jab"),  # cntl
-    "jive":                             RecordWord("+jive"), # alt
 
     # word mangling (meta words)
-    "camel":                            RecordWord("+camel"),
     "dee space":                        RecordWord("_despace"),
-    "lama":                             RecordWord("+lama"),
-    "rhino":                            RecordWord("+rhino"),
-    "squirrel":                         RecordWord("+squirrel"),
     "dot word":                         RecordWord("_dotword"),
 
-    # alphabet (meta words)
-    "al":                               RecordWord("+al"),
-    # conflict: baz/bash
-    "baz":                              RecordWord("+baz"),
-    # conflict: crow/row
-    "crow":                             RecordWord("+crow"),
-    "dow":                              RecordWord("+dow"),
-    "eel":                              RecordWord("+eel"),
-    "fox":                              RecordWord("+fox"),
-    "grays":                            RecordWord("+grays"),
-    "hoax":                             RecordWord("+hoax"),
-    "imp":                              RecordWord("+imp"),
-    # conflict: junk/chunk
-    "junk":                             RecordWord("+junk"),
-    "kong":                             RecordWord("+kong"),
-    # conflict floon/loon
-    "loon":                             RecordWord("+loon"),
-    "mike":                             RecordWord("+mike"),
-    "nack":                             RecordWord("+nack"),
-    "booz":                             RecordWord("+booz"),
-    "punk":                             RecordWord("+punk"),
-    "quox":                             RecordWord("+quox"),
-    "raz":                              RecordWord("+raz"),
-    # conflict sing/scene
-    "sing":                             RecordWord("+sing"),
-    "tunk":                             RecordWord("+tunk"),
-    "munk":                             RecordWord("+munk"),
-    "vack":                             RecordWord("+vack"),
-    "wump":                             RecordWord("+wump"),
-    "cross":                            RecordWord("+cross"),
-    "ying":                             RecordWord("+ying"),
-    "zoo":                              RecordWord("+zoo"),
-
     # special characters (meta words)
-    "slap":                             RecordWord("+slap"),
     "kick [<n>]":                       RecordKey("tab:%(n)d", "+kick"),
     "gap [<n>]":                        RecordKey("space:%(n)d", "+gap"),
-    "dot":                              RecordWord("+dot"),
-    "rock":                             RecordWord("+rock"),
-      # conflict rack/whack
-      "rack":                           RecordWord("+rack"),
-    "brick":                            RecordWord("+brick"),
-      "brack":                          RecordWord("+brack"),
-    "squirm":                           RecordWord("+squirm"),
-      "squack":                         RecordWord("+squack"),
-    "bent":                             RecordWord("+bent"),
-      "vent":                           RecordWord("+vent"),
-    # conflict escape/scape/skip
-    "scape":                            RecordWord("+scape"),
-    "escape":                           RecordWord("+escape"),
-    "slash":                            RecordWord("+slash"),
-    "blash":                            RecordWord("+blash"),
-    "quotes":                           RecordWord("+quotes"),
-    # conflict: quote/quota
-    "quote":                            RecordWord("+quote"),
-    "ticker":                           RecordWord("+ticker"),
-    "fist":                             RecordWord("+fist"),
-    "bench":                            RecordWord("+bench"),
-    "boom":                             RecordWord("+boom"),
-    # conflict: ping/bang
-    "bang":                             RecordWord("+bang"),
-    "tent":                             RecordWord("+tent"),
-    "ching":                            RecordWord("+ching"),
-    "dasher":                           RecordWord("+dasher"),
-    "adder":                            RecordWord("+adder"),
-    "quest":                            RecordWord("+quest"),
-    "sharp":                            RecordWord("+sharp"),
-    "spark":                            RecordWord("+spark"),
-    "sparker":                          RecordWord("+sparker"),
-    "under":                            RecordWord("+under"),
-    "wormey":                           RecordWord("+wormey"),
-    "pipe":                             RecordWord("+pipe"),
-    "piper":                            RecordWord("+piper"),
-    # conflict: pox/fox
-    "pox":                              RecordWord("+pox"),
-    "quiv":                             RecordWord("+quiv"),
-    "slim":                             RecordWord("+slim"),
-    "clunk":                            RecordWord("+clunk"),
-    "clink":                            RecordWord("+clink"),
-
-    # Combinations of special characters
-    "slam":                             RecordWord("+slam"),
-    "slamo":                            RecordWord("+slamo"),
 
     # Special Keys
     "slay [<n>]":                       RecordKey("c-c:%(n)d", "+slay"),
@@ -949,7 +503,7 @@ config.cmd.map    = Item(
     # Undo/Redo backspace
     "strike [<n>]":                     RecordKey("c-z:%(n)d", "+strike"),
     "whack [<n>]":                      RecordKey("backspace:%(n)d", "+whack"),
-    "chop [<n>]":                      RecordKey("backspace:%(n)d", "+chop"),
+    "chop [<n>]":                       RecordKey("backspace:%(n)d", "+chop"),
     "wax [<n>]":                        RecordKey("delete:%(n)d", "wax"),
     "chip [<n>]":                       RecordKey("delete:%(n)d", "chip"),
 
@@ -966,7 +520,7 @@ config.cmd.map    = Item(
     "spook": (                          RecordAction(Mouse("left:down"), "+spook") +
                                         RecordAction(DelayedAction(Mouse("left:up")))),
 
-    "bi spook": (                       RecordAction(
+    "bye spook": (                       RecordAction(
                                             Mouse("left, left:down"),
                                             "+bi-spook") +
                                         RecordAction(DelayedAction(Mouse("left:up")))
@@ -999,10 +553,7 @@ config.cmd.map    = Item(
 #                                            DelayedAction(Mouse("middle:up")), "duke") +
 #                                        RecordAction(Mouse("middle:down"), "duke2")),
 
-    "zook":                             ReleaseModifiers(),
-
     # Navigation keys
-    "list leaps":                       Function(lambda : FocusWindow.ls()),
     "leap up [<n>]":                    RecordKey("up:%(n)d", "leap up"),
     "leap down [<n>]":                  RecordKey("down:%(n)d", "leap down"),
     "leap right [<n>]":                 RecordKey("right:%(n)d", "leap right"),
@@ -1026,8 +577,6 @@ config.cmd.map    = Item(
     "snile":                            RecordWord("while ("),
     "snore":                            RecordWord("for (", "+_snore"),
     "snitch":                           RecordWord("switch ("),
-    "cliff":                            RecordWord("+return"),
-    "print line":                       RecordWord("+println"),
 
     # Generic calcations
     "calc not":                         RecordWord("-_!"),
@@ -1071,8 +620,6 @@ config.cmd.map    = Item(
     # Java
     # conflict: int/end/tent/init
     "inter":                            RecordWord("+int"),
-    "integer":                          RecordWord("+integer"),
-    "bool":                             RecordWord("+bool"),
 
 # tate is not a good keyword
 #    "tate auto [wire | wired]":         RecordWord("_@Autowired"),
@@ -1085,25 +632,10 @@ config.cmd.map    = Item(
     # Python
     "def":                              RecordWord("-_def "),
     "el if":                            RecordWord("-_elif "),
-    "dict":                             RecordWord("+dict"),
 
     # Hadoop
-    "yarn":                             RecordWord("+yarn"),
-    "oozie":                            RecordWord("+oozie"),
     "ha dupe":                          RecordWord("hadoop "),
     "ha duper":                         RecordWord("-hadoop fs -"),
-    "pig":                              RecordWord("+pig"),
-    "hive":                             RecordWord("+hive"),
-    "dump":                             RecordWord("+dump"),
-    "input":                            RecordWord("+input"),
-    "tuple":                            RecordWord("+tuple"),
-    "batch":                            RecordWord("+batch"),
-    "go":                               RecordWord("+go"),
-    "join":                             RecordWord("+join"),
-    "man":                              RecordWord("+man"),
-    "fail":                             RecordWord("+fail"),
-    "failed":                           RecordWord("+failed"),
-    "output":                           RecordWord("+output"),
 
     # Scala
     "scal ah":                          RecordWord("+scala"),
@@ -1111,49 +643,33 @@ config.cmd.map    = Item(
     "stream type":                      RecordWord("_Stream["),
     "mapping type":                     RecordWord("_Map["),
     "inter type":                       RecordWord("+_Int"),
-    "login code <nn>":                  RecordWord("*062445%(nn)6s\r"),
 
     # eclipse
-    "yikes":                            RecordKey("c-space"),
-    "chase":                            RecordKey("f3"),
-    "leap line <nn>":                   RecordKey("c-l") + RecordWord("%(nn)d\r"),
-    "leap use":                         RecordKey("cs-g"),
-    "leap type":                        RecordKey("cs-t"),
-    "leap resource":                    RecordKey("cs-r"),
+#    "chase":                            RecordKey("f3"),
+#    "leap line <nn>":                   RecordKey("c-l") + RecordWord("%(nn)d\r"),
+#    "leap use":                         RecordKey("cs-g"),
+#    "leap type":                        RecordKey("cs-t"),
+#    "leap resource":                    RecordKey("cs-r"),
 #    "kick types":                       RecordKey("cs-o"),
 #    "kick type":                        RecordKey("cs-m"),
 #    "kick error":                       RecordKey("c-1"),
 
     # Unix/bash commands
-    "tar":                              RecordWord("tar "),
 #    "tail":                             RecordWord("tail "),
-    "head":                             RecordWord("head "),
-    "gaze condor":                      RecordWord("-condor_ql | grep barn\r"),
     "gaze dear":                        RecordWord("-ll\r"),
-    "gaze proc":                        RecordWord("-psx\r"),
     "gaze where":                       RecordWord("-pwd\r"),
-    "scat":                             RecordWord("+scat"),
-    "leap here":                        RecordWord("-cdwd\r"),
     # conflict: grep/group
-    "grep":                             RecordWord("-grep "),
     "stream ed":                        RecordWord("-sed "),
-    "meld":                             RecordWord("-meld "),
-    "cron":                             RecordWord("+cron"),
     "cron tab":                         RecordWord("+crontab"),
     "make dear":                        RecordWord("-mkdir "),
-    "awk":                              RecordWord("-awk "),
     "ex args":                          RecordWord("-xargs "),
-    "vim":                              RecordWord("-vim "),
 
     "sue do":                           RecordWord("-sudo "),
     "my sequal | my SQL":               RecordWord("+mysql"),
-    "chmod":                            RecordWord("-chmod "),
-    # conflict: dark/tunk/under
-    "dark":                             RecordWord("+dark"),
-    "dirt":                             RecordWord("+dirt"),
 
 
     # window navigation
+    "list leaps":                       Function(lambda : FocusWindow.ls()),
     "leap <n>": (                       RecordKey("alt:down", "+leap") +
                                         RecordKey("tab/4:%(n)d/4") +
                                         RecordKey("alt:up")),
@@ -1161,23 +677,44 @@ config.cmd.map    = Item(
     "leap unix":                        RecordAction(
             FocusWindow(title="Remote Desktop Connection"), "leap unix"),
     "leap mail":                        RecordAction(
-            FocusWindow(title="Inbox - devbar@amazon.com - Outlook")),
+            FocusWindow(title=" - Outlook")),
     "leap reader":                      RecordAction(
-            FocusWindow(title="Adobe Acrobat Reader")),
+            FocusWindow(title=" - Adobe Acrobat Reader")),
     "leap browse":                      RecordAction(
-            FocusWindow(title="Mozilla Firefox")),
+            FocusWindow(title=" - Mozilla Firefox")),
     "leap key [pass]":                  RecordAction(
-            FocusWindow(title="KeePass")),
+            FocusWindow(title=" - KeePass")),
     "leap exel":                        RecordAction(
             FocusWindow(title=" - Excel")),
-    "leap eclipse":                     RecordAction(
-            FocusWindow(executable="eclipse.exe")),
-        
-#    "leap word":                        RecordAction(
-#            FocusWindow(title="Microsoft Word")),
+    "leap vim":                         RecordAction(
+            FocusWindow(title=" - GVIM")),
+    "leap work bench":                  RecordAction(
+            FocusWindow(title="SQL Workbench")),
+    "leap chime":                       RecordAction(
+            FocusWindow(title="Amazon Chime")),
+    "leap voice":                       RecordAction(
+            FocusWindow(title="dragonexec")),
+}
 
-    #} + [(word[1:], RecordWord(word)) for word, symbol in metaWords.keys()],
-    },
+listenMap.update([
+    (wordWithPlus[1:], RecordWord(wordWithPlus))
+    for wordWithPlus
+    in substitutions.keys()])
+
+listenMap.update([
+    (word, RecordWord("+" + word))
+    for word
+    in plainWords])
+
+listenMap.update([
+    (word, RecordWord("-" + word + " "))
+    for word
+    in commandWords])
+
+config            = Config("super edit")
+config.cmd        = Section("Language section")
+config.cmd.map    = Item(
+    listenMap,
     namespace={
      "Key":   Key,
      "Text":  Text,

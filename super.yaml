@@ -1,0 +1,397 @@
+# WORD syntax
+# [-] [+] [&] [_] <letters>
+#   [-] - don't print the trailing space from the previous word
+#   [+] - print a trailing space after this word later on (can be removed by the next word)
+#   [&] - is a key
+#   [_] - a "keyword", start a new phrase
+
+escape: simon
+
+replay: rip
+
+mangles:
+    "_camel":
+        firstXform: None
+        xform: "lambda x : x[0].upper() + x[1:]"
+    "_lama":
+        xform: "lambda x : x[0].upper() + x[1:]"
+    "_rhino":
+        delimiter: _
+        xform: unicode.upper
+    "_squirrel":
+        delimiter: _
+        xform: unicode.lower
+    "_despace": {}
+    "_dotword":
+        delimiter: .
+
+commands:
+    - grep
+    - awk
+    - chmod
+    - vim
+
+substitutions:
+    # modifier keys
+    - {from: ["+caps"], to: "_caps"} # shift
+    - {from: ["+lift"], to: "_lift"} # shift
+    - {from: ["+jab"], to: "_jab"} # cntl
+    - {from: ["+jive"], to: "_jive"} # alt
+
+    # word mangling
+    - {from: ["+camel"], to: "_camel"}
+    - {from: ["+lama"], to: "_lama"}
+    - {from: ["+rhino"], to: "_rhino"}
+    - {from: ["+squirrel"], to: "_squirrel"}
+
+    # alphabet
+    - {from: ["+al"], to: "-a"}
+    - {from: ["+baz"], to: "-b"} # conflict: baz/bash
+    - {from: ["+crow"], to: "-c"} # conflict: crow/row
+    - {from: ["+dow"], to: "-d"}
+    - {from: ["+eel"], to: "-e"}
+    - {from: ["+fox"], to: "-f"}
+    - {from: ["+grays"], to: "-g"}
+    - {from: ["+hoax"], to: "-h"}
+    - {from: ["+imp"], to: "-i"}
+    - {from: ["+junk"], to: "-j"} # conflict: junk/chunk
+    - {from: ["+kong"], to: "-k"}
+    - {from: ["+loon"], to: "-l"} # conflict floon/loon
+    - {from: ["+mike"], to: "-m"}
+    - {from: ["+nack"], to: "-n"}
+    - {from: ["+booz"], to: "-o"}
+    - {from: ["+punk"], to: "-p"}
+    - {from: ["+quox"], to: "-q"}
+    - {from: ["+raz"], to: "-r"}
+    - {from: ["+sing"], to: "-s"} # conflict sing/scene
+    - {from: ["+tunk"], to: "-t"}
+    - {from: ["+munk"], to: "-u"}
+    - {from: ["+vack"], to: "-v"}
+    - {from: ["+wump"], to: "-w"}
+    - {from: ["+cross"], to: "-x"}
+    - {from: ["+ying"], to: "-y"}
+    - {from: ["+zoo"], to: "-z"}
+
+    # special characters
+    - {from: ["+scape"], to: "/-_\x1b"} # conflict escape/scape/skip
+    - {from: ["+slap"], to: "-_\r"}
+#    - {from: ["+kick"], to: "-_\t"}
+#    - {from: ["+gap"], to: "-_ "}
+
+    - {from: ["+rock"], to: "-_("}
+    - {from: ["+rocks"], to: "-+_()"}
+    - {from: ["+rack"], to: "-+_)"} # conflict rack/whack
+    - {from: ["+rake"], to: "-+_)"} # experiment
+
+    - {from: ["+brick"], to: "-_["}
+    - {from: ["+bricks"], to: "-+_[]"}
+    - {from: ["+brack"], to: "-+_]"}
+
+    - {from: ["+squirm"], to: "_{"}
+    - {from: ["+squack"], to: "-_}"}
+
+    - {from: ["+tent"], to: "-_^"}
+    - {from: ["+bent"], to: "-_<"}
+    - {from: ["+vent"], to: "-_>"}
+
+    - {from: ["+slash"], to: "-_/"}
+    - {from: ["+blash"], to: "-_\\"}
+    - {from: ["+quotes"], to: "-_\""}
+    - {from: ["+quote"], to: "-_'"} # conflict: quote/quota
+    - {from: ["+ticker"], to: "-_`"}
+    - {from: ["+fist"], to: "-_@"}
+    - {from: ["+bench"], to: "-_&"}
+    - {from: ["+boom"], to: "-_!"}
+    - {from: ["+ching"], to: "-_$"}
+    - {from: ["+dasher"], to: "-_-"}
+    - {from: ["+adder"], to: "-_+"}
+    - {from: ["+quest"], to: "-_?"}
+    - {from: ["+sharp"], to: "-_#"}
+    - {from: ["+spark"], to: "-_*"}
+    - {from: ["+sparker"], to: "+_*"}
+    - {from: ["+under"], to: "-__"}
+    - {from: ["+wormey"], to: "-_~"}
+    - {from: ["+pipe"], to: "-_|"}
+    - {from: ["+piper"], to: "-_ | "}
+    - {from: ["+pox"], to: "-_%"} # conflict: pox/fox
+    - {from: ["+quiv"], to: "-_="}
+    - {from: ["+clunk"], to: "-+_,"}
+    - {from: ["+clink"], to: "-_:"}
+    - {from: ["+slim"], to: "-+_;"}
+
+    # bash commands
+    - {from: ["+scat"], to: "-_cd "}
+    - {from: ["+dupe"], to: "-_cp "}
+    - {from: ["+trout"], to: "-_mv "}
+    - {from: ["+zap"], to: "-_rm "}
+    - {from: ["+ground"], to: "_~/"}
+    - {from: ["+dark"], to: "_../"}
+    - {from: ["+dirt"], to: "_./"}
+    - {from: ["+maven"], to: "-_mvn "}
+
+    # General programming help
+    - {from: ["+slam"], to: "-();"}
+    - {from: ["+slamo"], to: "-<>();"}
+
+    - {from: ["-vim ", "+diff"], to: "vimdiff "}
+    - {from: ["-vim ", "+quit"], to: "-_:q\r"}
+    - {from: ["-vim ", "+save"], to: "-_:wq\r"}
+    - {from: ["+tar ", "+get"], to: "target "}
+    - {from: ["+dot", "+pie"], to: "-_.py "}
+    - {from: ["+num", "+pie"], to: "+numpy "}
+    - {from: ["+print", "+line"], to: "-println("}
+    - {from: ["+short", "+source"], to: "+src"}
+
+words:
+    - "false"
+    - "null"
+    - "true"
+    - accessor
+    - bool
+    - integer
+    - dict
+    - while
+    - add
+    - address
+    - age
+    - all
+    - alpha
+    - amazon
+    - ant
+    - append
+    - array
+    - auth
+    - auto
+    - avoid
+    - base
+    - bash # conflict: bash/blash/baz
+    - batch
+    - beta # conflict: beta/data
+    - bin
+    - bit
+    - blank
+    - blob
+    - body
+    - boolean
+    - borrow
+    - borrowed
+    - brazil
+    - break
+    - buffer
+    - buffered
+    - build
+    - button
+    - byte
+    - bytes
+    - cache
+    - carrier
+    - carton
+    - case
+    - cat
+    - cell
+    - char
+    - cipher
+    - class
+    - clean
+    - client
+    - clone
+    - close
+    - coalesce
+    - collect
+    - color
+    - column
+    - config
+    - console
+    - cookie
+    - count
+    - curl
+    - data
+    - decryption
+    - defined
+    - deploy
+    - describe
+    - desk
+    - device
+    - devin
+    - dictionary
+    - diff
+    - divide
+    - done
+    - double
+    - drop
+    - dump
+    - earth
+    - echo
+    - eclipse
+    - else
+    - empty
+    - enable
+    - engine
+    - entry
+    - error
+    - fail
+    - failed
+    - fetch
+    - find
+    - float
+    - flush
+    - forwarding
+    - freight
+    - get
+    - global
+    - go
+    - graph
+    - group
+    - hash
+    - head
+    - header
+    - headers
+    - height
+    - hide
+    - histogram
+    - hive
+    - ignore
+    - import
+    - inner
+    - input
+    - inventory
+    - is
+    - iterable
+    - iterate
+    - iterator
+    - iterator
+    - jar
+    - java
+    - jira
+    - join
+    - key
+    - kill
+    - kubernetes
+    - lambda
+    - len
+    - length
+    - less
+    - lib
+    - line
+    - line
+    - line
+    - lines
+    - link
+    - list
+    - log
+    - logger
+    - lot
+    - macro
+    - make
+    - man
+    - mangle
+    - merge
+    - meta
+    - method
+    - metro
+    - mock
+    - none
+    - normalize
+    - num
+    - obscure
+    - octet
+    - octets
+    - odin
+    - oozie
+    - open
+    - optimize
+    - optimizer
+    - order
+    - origin
+    - other
+    - out
+    - outer
+    - output
+    - pair
+    - pallet
+    - pallets
+    - pandas
+    - parens
+    - parse
+    - parsed
+    - pause
+    - phone
+    - pickup
+    - pie
+    - pig
+    - ping
+    - print
+    - pull
+    - python
+    - queue
+    - queues
+    - quiz
+    - quota # conflict: quota/quota hana/quarter/quote tar
+    - raise
+    - rank
+    - raw
+    - read
+    - repeater
+    - request
+    - response
+    - rest
+    - root
+    - row
+    - rows
+    - run
+    - scan
+    - select
+    - sequence
+    - serializable
+    - serialize
+    - service
+    - shape
+    - share
+    - ship
+    - show
+    - sign
+    - size
+    - sock
+    - socket
+    - span
+    - split
+    - stop
+    - stream
+    - string
+    - string
+    - tab
+    - table
+    - tag
+    - tags
+    - tail
+    - template
+    - then
+    - theta
+    - this
+    - threshold
+    - to
+    - token
+    - tokenize
+    - tool
+    - top
+    - trim
+    - trim
+    - trunk
+    - tunnel
+    - tuple
+    - type
+    - types
+    - unstacked
+    - velocity
+    - vendor
+    - void
+    - warm
+    - weight
+    - width
+    - will
+    - with
+    - work
+    - yarn
+    - zip
+    - cron
+
