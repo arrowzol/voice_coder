@@ -9,6 +9,7 @@ escape: simon
 
 replay: rip
 
+
 mangles:
     "_camel":
         firstXform: None
@@ -25,11 +26,57 @@ mangles:
     "_dotword":
         delimiter: .
 
+
+keys:
+    # special characters (meta words)
+    "kick [<n>]": "tab:%(n)d"
+    "gap [<n>]": "space:%(n)d"
+
+    # Special Keys
+    "sleigh [<n>]": "c-c:%(n)d"
+    "func <n>": "f%(n)d"
+
+    # Copy paste
+    "barf [<n>]": "c-v:%(n)d"
+    "chomp": "c-x"
+
+    # Undo/Redo backspace
+    "strike [<n>]": "c-z:%(n)d"
+    "whack [<n>]": "backspace:%(n)d"
+    "chop [<n>]": "backspace:%(n)d"
+    "wax [<n>]": "delete:%(n)d"
+    "chip [<n>]": "delete:%(n)d"
+
+    # Navigation keys
+    "leap up [<n>]": "up:%(n)d"
+    "leap down [<n>]": "down:%(n)d"
+    "leap right [<n>]": "right:%(n)d"
+    "leap left [<n>]": "left:%(n)d"
+    "leap top": "c-home"
+    "leap bottom": "c-end"
+    "page down [<n>]": "pgdown:%(n)d"
+    "page up [<n>]": "pgup:%(n)d"
+
+
+windowLeaps:
+    "unix": "Remote Desktop Connection"
+    "mail": " - Outlook"
+    "reader": " - Adobe Acrobat Reader"
+    "browse": " - Mozilla Firefox"
+    "key [pass]": " - KeePass"
+    "exel": " - Excel"
+    "vim": " - GVIM"
+    "work bench": "SQL Workbench"
+    "chime": "Amazon Chime"
+    "voice": "dragonexec"
+
+
 commands:
     - grep
     - awk
     - chmod
     - vim
+
 
 substitutions:
     # modifier keys
@@ -75,25 +122,18 @@ substitutions:
     # special characters
     - {from: ["+scape"], to: "/-_\x1b"} # conflict escape/scape/skip
     - {from: ["+slap"], to: "-_\r"}
-#    - {from: ["+kick"], to: "-_\t"}
-#    - {from: ["+gap"], to: "-_ "}
-
     - {from: ["+rock"], to: "-_("}
     - {from: ["+rocks"], to: "-+_()"}
     - {from: ["+rack"], to: "-+_)"} # conflict rack/whack
-    - {from: ["+rake"], to: "-+_)"} # experiment
-
+#    - {from: ["+rake"], to: "-+_)"} # experiment
     - {from: ["+brick"], to: "-_["}
     - {from: ["+bricks"], to: "-+_[]"}
     - {from: ["+brack"], to: "-+_]"}
-
     - {from: ["+squirm"], to: "_{"}
     - {from: ["+squack"], to: "-_}"}
-
     - {from: ["+tent"], to: "-_^"}
     - {from: ["+bent"], to: "-_<"}
     - {from: ["+vent"], to: "-_>"}
-
     - {from: ["+slash"], to: "-_/"}
     - {from: ["+blash"], to: "-_\\"}
     - {from: ["+quotes"], to: "-_\""}
@@ -118,8 +158,9 @@ substitutions:
     - {from: ["+clunk"], to: "-+_,"}
     - {from: ["+clink"], to: "-_:"}
     - {from: ["+slim"], to: "-+_;"}
+    - {from: ["+dot"], to: "-_."}
 
-    # bash commands
+    # unix cli
     - {from: ["+scat"], to: "-_cd "}
     - {from: ["+dupe"], to: "-_cp "}
     - {from: ["+trout"], to: "-_mv "}
@@ -127,30 +168,150 @@ substitutions:
     - {from: ["+ground"], to: "_~/"}
     - {from: ["+dark"], to: "_../"}
     - {from: ["+dirt"], to: "_./"}
+    - {from: ["+cron", "+tab"], to: "+crontab"}
+    - {from: ["+gitter"], to: "+git"}
+
+    # java
     - {from: ["+maven"], to: "-_mvn "}
+    - {from: ["+slamo"], to: "-<>();"}
+    - {from: ["+inter"], to: "+int"}
+    - {from: ["+print", "+line"], to: "-println("}
 
     # General programming help
     - {from: ["+slam"], to: "-();"}
-    - {from: ["+slamo"], to: "-<>();"}
+    - {from: ["+tar ", "+get"], to: "target "}
+    - {from: ["+short", "+source"], to: "+src"}
 
+    # Alternatives to conflicts
+    - {from: ["+conjunction"], to: "+and"} # end/and
+
+    # vim
     - {from: ["-vim ", "+diff"], to: "vimdiff "}
     - {from: ["-vim ", "+quit"], to: "-_:q\r"}
     - {from: ["-vim ", "+save"], to: "-_:wq\r"}
-    - {from: ["+tar ", "+get"], to: "target "}
+
+    # Python
     - {from: ["+dot", "+pie"], to: "-_.py "}
     - {from: ["+num", "+pie"], to: "+numpy "}
-    - {from: ["+print", "+line"], to: "-println("}
-    - {from: ["+short", "+source"], to: "+src"}
+
+
+soundsLike:
+    # for word mangling
+    "dee space": "_despace"
+    "dot word": "_dotword"
+
+    # terminology
+    "dot com": "-_.com"
+    "ID": "+id"
+    "you till": "+util"
+    "you are el": "+url"
+    "S. S. L.": "+ssl"
+    "H. T. T. P.": "+http"
+    "H. T. T. P. S.": "+https"
+    "yah mole": "+yaml"
+    "ree base": "+rebase"
+    "in foe sehk": "+info-sec"
+    "write for out": "+write"
+    "plug in": "+plugin"
+    "eenume": "+enum"
+    "sink": "+sync"
+    "jay sawn": "+json"
+    "dee dupe": "+dedup"
+    "to do": "+TODO"
+
+    # Amazon
+    "ace in": "+asin"
+
+    # C/C++
+#    "stir cat": "strcat"
+#    "stir en cat": "strncat"
+#    "stir copy": "strcpy"
+#    "stir en copy": "strncpy"
+#    "stir length": "strlen"
+#    "mallock": "malloc"
+#    "sub stir": "+substr"
+
+    # Java
+    "J. M. S.": "+jms"
+    "J. D. B. C.": "+jdbc"
+    "poe joe": "+pojo"
+    "at link": "{@link "
+    "sniff": "if ("
+    "snile": "while ("
+    "snore": "for ("
+    "snitch": "switch ("
+
+    # Generic calcations
+    "calc not": "-_!"
+    "calc quiv": "-_ == "
+    "calc not quiv": "-_ != "
+    "calc great": "-_ > "
+    "calc great quiv": "-_ >= "
+    "calc less": "-_ < "
+    "calc less quiv": "-_ <= "
+    "calc up": "-_ + "
+    "calc down": "-_ - "
+    "calc times": "-_ * "
+    "calc divide": "-_ / "
+    "calc mod": "-_ %% "
+    "calc or": "-_ || "
+    "calc bit or": "-_ | "
+    "calc and": "-_ && "
+    "calc bit and": "-_ & "
+    "calc ex or": "-_ ^ "
+    "calc ink": "-_++"
+    "calc deck": "-_--"
+    "calc set": "-_ = "
+    "calc up set": "-_ += "
+    "calc down set": "-_ -= "
+    "calc times set": "-_ *= "
+    "calc divide set": "-_ /= "
+    "calc mod set": "-_ %= "
+    "calc or set": "-_ ||= "
+    "calc bit or set": "-_ |= "
+    "calc and set": "-_ &&= "
+    "calc bit and set": "-_ &= "
+    "calc ex or set": "-_ ^= "
+
+    "calc turn": "-_ ? "
+    "calc else": "-_ : "
+
+    "calc sum": "+sum"
+    "calc min": "+min"
+    "calc max": "+max"
+
+    # Python
+    "E. val": "+eval"
+    "def": "-_def "
+    "el if": "-_elif "
+    "pie charm": "+pycharm"
+
+    # Hadoop
+#    "ha dupe": "hadoop "
+#    "ha duper": "-hadoop fs -"
+
+    # Scala
+#    "scal ah": "+scala"
+#    "sequence type": "_Seq["
+#    "stream type": "_Stream["
+#    "mapping type": "_Map["
+#    "inter type": "+_Int"
+
+    # Unix/bash commands
+    "gaze dear": "-ll\r"
+    "gaze where": "-pwd\r"
+    "stream ed": "-sed "
+    "make dear": "-mkdir "
+    "ex args": "-xargs "
+    "sue do": "-sudo "
+    "my sequal | my SQL": "+mysql"
+
 
 words:
     - "false"
     - "null"
     - "true"
     - accessor
-    - bool
-    - integer
-    - dict
-    - while
     - add
     - address
     - age
@@ -172,6 +333,7 @@ words:
     - blank
     - blob
     - body
+    - bool
     - boolean
     - borrow
     - borrowed
@@ -204,6 +366,7 @@ words:
     - console
     - cookie
     - count
+    - cron
     - curl
     - data
     - decryption
@@ -213,6 +376,7 @@ words:
     - desk
     - device
     - devin
+    - dict
     - dictionary
     - diff
     - divide
@@ -254,11 +418,11 @@ words:
     - import
     - inner
     - input
+    - integer
     - inventory
     - is
     - iterable
     - iterate
-    - iterator
     - iterator
     - jar
     - java
@@ -272,8 +436,6 @@ words:
     - length
     - less
     - lib
-    - line
-    - line
     - line
     - lines
     - link
@@ -297,7 +459,6 @@ words:
     - octet
     - octets
     - odin
-    - oozie
     - open
     - optimize
     - optimizer
@@ -358,7 +519,6 @@ words:
     - stop
     - stream
     - string
-    - string
     - tab
     - table
     - tag
@@ -369,12 +529,10 @@ words:
     - theta
     - this
     - threshold
-    - to
     - token
     - tokenize
     - tool
     - top
-    - trim
     - trim
     - trunk
     - tunnel
@@ -387,11 +545,11 @@ words:
     - void
     - warm
     - weight
+    - when
+    - while
     - width
     - will
     - with
     - work
-    - yarn
     - zip
-    - cron
 

@@ -37,12 +37,15 @@ replayWord = yaml_data['replay']
 replayWordPlus = "+" + replayWord
 
 substitutions = {}
-for f, t in [(d['from'], d['to']) for d in yaml_data['substitutions']]:
+for f, t in [(substitute['from'], substitute['to']) for substitute in yaml_data['substitutions']]:
     firstWord = f[0]
+    otherWords = f[1:]
     if firstWord in substitutions:
-        substitutions[firstWord].append([f[1:], t])
+        substitutions[firstWord].append([otherWords, t])
     else:
-        substitutions[firstWord] = [[f[1:], t],]
+        substitutions[firstWord] = [[otherWords, t],]
+for v in substitutions.values():
+    v.sort(lambda a,b:len(b[0]) - len(a[0]))
 
 mangleMap = {}
 
@@ -53,9 +56,18 @@ for k, v in yaml_data['mangles'].items():
     mangleMap[k] = (delim, eval(firstXform), eval(xform))
 
 commandWords = yaml_data['commands']
+windowLeaps = yaml_data['windowLeaps']
+soundsLike = yaml_data['soundsLike']
+keyClicks = yaml_data['keys']
 
 plainWords = yaml_data['words']
-plainWords.extend((wordWithPlus[1:] for wordWithPlus in flatten((d['from'] for d in yaml_data['substitutions']))))
+plainWords.extend((
+    wordWithPlus[1:]
+    for wordWithPlus
+    in flatten((
+        substitute['from']
+        for substitute
+        in yaml_data['substitutions']))))
 plainWords.append(escapeWord)
 plainWords.append(replayWord)
 plainWords = set(plainWords)
@@ -351,10 +363,10 @@ def processVoiceEvents():
                     escaped = False
                 else:
                     print("EXEC:", name)
-#                    try:
-#                        action._execute(data)
-#                    except Exception, e:
-#                        print("Exception:", e)
+                    try:
+                        action._execute(data)
+                    except Exception, e:
+                        print("Exception:", e)
                     eventHistory.append(('a', (action, data)))
                     time.sleep(0.05)
             time.sleep(0.02)
@@ -444,68 +456,8 @@ listenMap = {
     # meant to catch everything, but some words need help being recognized
     "<text>":                           RecordDictation("%(text)s"),
 
-    # Alternatives to conflicts
-    "conjunction":                      RecordWord("+and"),
-    "write as in out":                  RecordWord("+write"),
-
-    # conflict: bean/bin
-    "plug in":                          RecordWord("+plugin"),
-    "eenume":                           RecordWord("+enum"),
-
-    "sink":                             RecordWord("+sync"),
-    # conflict: main/name
-    "sub stir":                         RecordWord("+substr"),
-    "A. sin":                           RecordWord("+ASIN"),
-
-    # conflict: diff/def
-    "jay sawn":                         RecordWord("+json"),
-    "dee dupe":                         RecordWord("+dedup"),
-    "to do":                            RecordWord("+TODO"),
-    # conflict: column/k/com
-    "dot com":                          RecordWord("-_.com"),
-    "ex per":                           RecordWord("+expr"),
-    "J. D. B. C.":                      RecordWord("+jdbc"),
-    "ID":                               RecordWord("+id"),
-    "you till":                         RecordWord("+util"),
-    "you are al":                       RecordWord("+url"),
-    "you are el":                       RecordWord("+url"),
-    "S. S. L.":                         RecordWord("+ssl"),
-    "U. R. L.":                         RecordWord("+url"),
-    "J. M. S.":                         RecordWord("+jms"),
-    "H. T. T. P.":                      RecordWord("+http"),
-    "H. T. T. P. S.":                   RecordWord("+https"),
-    "yah mole":                         RecordWord("+yaml"),
-    "ex later":                         RecordWord("+xlat"),
-    "gitter":                           RecordWord("+git", "+gitter"),
-    "ree base":                         RecordWord("+rebase"),
-    "poe joe":                          RecordWord("+pojo"),
-    "E. val":                           RecordWord("+eval"),
-    "in foe sehk":                      RecordWord("+info-sec"),
-    "pie charm":                        RecordWord("+pycharm"),
-
-    # word mangling (meta words)
-    "dee space":                        RecordWord("_despace"),
-    "dot word":                         RecordWord("_dotword"),
-
-    # special characters (meta words)
-    "kick [<n>]":                       RecordKey("tab:%(n)d", "+kick"),
-    "gap [<n>]":                        RecordKey("space:%(n)d", "+gap"),
-
-    # Special Keys
-    "slay [<n>]":                       RecordKey("c-c:%(n)d", "+slay"),
-    "func <n>":                         RecordKey("f%(n)d"),
-
-    # Copy paste
+    # copy
     "lick":                             RecordKey("c-c", "+lick") + MouseSequence("<1,1>*5;<1,-1>*10;<-15,5>"),
-    "barf [<n>]":                       RecordKey("c-v:%(n)d", "+barf"),
-    "chomp":                            RecordKey("c-x", "+chomp"),
-
-    # Undo/Redo backspace
-    "strike [<n>]":                     RecordKey("c-z:%(n)d", "+strike"),
-    "whack [<n>]":                      RecordKey("backspace:%(n)d", "+whack"),
-    "chop [<n>]":                       RecordKey("backspace:%(n)d", "+chop"),
-    "wax [<n>]":                        RecordKey("delete:%(n)d", "wax"),
-    "chip [<n>]":                       RecordKey("delete:%(n)d", "chip"),
 
     # Literals
     "numb <nn>":                        RecordWord("-_%(nn)d"),
@@ -553,147 +505,11 @@ listenMap = {
 #                                            DelayedAction(Mouse("middle:up")), "duke") +
 #                                        RecordAction(Mouse("middle:down"), "duke2")),
 
-    # Navigation keys
-    "leap up [<n>]":                    RecordKey("up:%(n)d", "leap up"),
-    "leap down [<n>]":                  RecordKey("down:%(n)d", "leap down"),
-    "leap right [<n>]":                 RecordKey("right:%(n)d", "leap right"),
-    "leap left [<n>]":                  RecordKey("left:%(n)d", "leap left"),
-    "leap top":                         RecordKey("c-home", "leap top"),
-    "leap bottom":                      RecordKey("c-end", "leap bottom"),
-    "page down [<n>]":                  RecordKey("pgdown:%(n)d", "page down"),
-    "page up [<n>]":                    RecordKey("pgup:%(n)d", "page up"),
-
-    # C/C++
-    "stir cat":                         RecordWord("strcat"),
-    "stir en cat":                      RecordWord("strncat"),
-    "stir copy":                        RecordWord("strcpy"),
-    "stir en copy":                     RecordWord("strncpy"),
-    "stir length":                      RecordWord("strlen"),
-    "mallock":                          RecordWord("malloc"),
-
-    # Java
-    "at link":                          RecordWord("{@link "),
-    "sniff":                            RecordWord("if ("),
-    "snile":                            RecordWord("while ("),
-    "snore":                            RecordWord("for (", "+_snore"),
-    "snitch":                           RecordWord("switch ("),
-
-    # Generic calcations
-    "calc not":                         RecordWord("-_!"),
-    "calc quiv":                        RecordWord("-_ == "),
-    "calc not quiv":                    RecordWord("-_ != "),
-    "calc great":                       RecordWord("-_ > "),
-    "calc great quiv":                  RecordWord("-_ >= "),
-    "calc less":                        RecordWord("-_ < "),
-    "calc less quiv":                   RecordWord("-_ <= "),
-    "calc up":                          RecordWord("-_ + "),
-    "calc down":                        RecordWord("-_ - "),
-    "calc times":                       RecordWord("-_ * "),
-    "calc divide":                      RecordWord("-_ / "),
-    "calc mod":                         RecordWord("-_ %% "),
-    "calc or":                          RecordWord("-_ || "),
-    "calc bit or":                      RecordWord("-_ | "),
-    "calc and":                         RecordWord("-_ && "),
-    "calc bit and":                     RecordWord("-_ & "),
-    "calc ex or":                       RecordWord("-_ ^ "),
-    "calc ink":                         RecordWord("-_++"),
-    "calc deck":                        RecordWord("-_--"),
-    "calc set":                         RecordWord("-_ = "),
-    "calc up set":                      RecordWord("-_ += "),
-    "calc down set":                    RecordWord("-_ -= "),
-    "calc times set":                   RecordWord("-_ *= "),
-    "calc divide set":                  RecordWord("-_ /= "),
-    "calc mod set":                     RecordWord("-_ %= "),
-    "calc or set":                      RecordWord("-_ ||= "),
-    "calc bit or set":                  RecordWord("-_ |= "),
-    "calc and set":                     RecordWord("-_ &&= "),
-    "calc bit and set":                 RecordWord("-_ &= "),
-    "calc ex or set":                   RecordWord("-_ ^= "),
-
-    "calc turn":                        RecordWord("-_ ? "),
-    "calc else":                        RecordWord("-_ : "),
-
-    "calc sum":                         RecordWord("+sum"),
-    "calc min":                         RecordWord("+min"),
-    "calc max":                         RecordWord("+max"),
-
-    # Java
-    # conflict: int/end/tent/init
-    "inter":                            RecordWord("+int"),
-
-# tate is not a good keyword
-#    "tate auto [wire | wired]":         RecordWord("_@Autowired"),
-#    "tate test":                        RecordWord("_@Test"),
-#    "tate bean":                        RecordWord("_@Bean"),
-#    "tate value":                       RecordWord("_@Value(\"${"),
-#    "tate component":                   RecordWord("_@Component"),
-#    "tate controller":                  RecordWord("_@Controller"),
-
-    # Python
-    "def":                              RecordWord("-_def "),
-    "el if":                            RecordWord("-_elif "),
-
-    # Hadoop
-    "ha dupe":                          RecordWord("hadoop "),
-    "ha duper":                         RecordWord("-hadoop fs -"),
-
-    # Scala
-    "scal ah":                          RecordWord("+scala"),
-    "sequence type":                    RecordWord("_Seq["),
-    "stream type":                      RecordWord("_Stream["),
-    "mapping type":                     RecordWord("_Map["),
-    "inter type":                       RecordWord("+_Int"),
-
-    # eclipse
-#    "chase":                            RecordKey("f3"),
-#    "leap line <nn>":                   RecordKey("c-l") + RecordWord("%(nn)d\r"),
-#    "leap use":                         RecordKey("cs-g"),
-#    "leap type":                        RecordKey("cs-t"),
-#    "leap resource":                    RecordKey("cs-r"),
-#    "kick types":                       RecordKey("cs-o"),
-#    "kick type":                        RecordKey("cs-m"),
-#    "kick error":                       RecordKey("c-1"),
-
-    # Unix/bash commands
-#    "tail":                             RecordWord("tail "),
-    "gaze dear":                        RecordWord("-ll\r"),
-    "gaze where":                       RecordWord("-pwd\r"),
-    # conflict: grep/group
-    "stream ed":                        RecordWord("-sed "),
-    "cron tab":                         RecordWord("+crontab"),
-    "make dear":                        RecordWord("-mkdir "),
-    "ex args":                          RecordWord("-xargs "),
-
-    "sue do":                           RecordWord("-sudo "),
-    "my sequal | my SQL":               RecordWord("+mysql"),
-
-
     # window navigation
     "list leaps":                       Function(lambda : FocusWindow.ls()),
     "leap <n>": (                       RecordKey("alt:down", "+leap") +
                                         RecordKey("tab/4:%(n)d/4") +
                                         RecordKey("alt:up")),
-
-    "leap unix":                        RecordAction(
-            FocusWindow(title="Remote Desktop Connection"), "leap unix"),
-    "leap mail":                        RecordAction(
-            FocusWindow(title=" - Outlook")),
-    "leap reader":                      RecordAction(
-            FocusWindow(title=" - Adobe Acrobat Reader")),
-    "leap browse":                      RecordAction(
-            FocusWindow(title=" - Mozilla Firefox")),
-    "leap key [pass]":                  RecordAction(
-            FocusWindow(title=" - KeePass")),
-    "leap exel":                        RecordAction(
-            FocusWindow(title=" - Excel")),
-    "leap vim":                         RecordAction(
-            FocusWindow(title=" - GVIM")),
-    "leap work bench":                  RecordAction(
-            FocusWindow(title="SQL Workbench")),
-    "leap chime":                       RecordAction(
-            FocusWindow(title="Amazon Chime")),
-    "leap voice":                       RecordAction(
-            FocusWindow(title="dragonexec")),
 }
 
 listenMap.update([
@@ -707,9 +523,25 @@ listenMap.update([
     in plainWords])
 
 listenMap.update([
+    (sound, RecordWord(script))
+    for sound, script
+    in soundsLike.items()])
+
+listenMap.update([
+    (sound, RecordKey(script, script))
+    for sound, script
+    in keyClicks.items()])
+
+# commandWords overwrite plainWords
+listenMap.update([
     (word, RecordWord("-" + word + " "))
     for word
     in commandWords])
+
+listenMap.update([
+    ("leap " + words, RecordAction(FocusWindow(title=theTitle)))
+    for words, theTitle
+    in windowLeaps.items()])
 
 config            = Config("super edit")
 config.cmd        = Section("Language section")
