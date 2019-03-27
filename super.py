@@ -58,7 +58,7 @@ for k, v in yaml_data['mangles'].items():
 commandWords = yaml_data['commands']
 windowLeaps = yaml_data['windowLeaps']
 soundsLike = yaml_data['soundsLike']
-keyClicks = yaml_data['keys']
+specialWords = yaml_data['special']
 
 plainWords = yaml_data['words']
 plainWords.extend((
@@ -419,6 +419,16 @@ class RecordAction(ActionBase):
         global voiceEvents
         voiceEvents.append(('a', (self._action, data, self._name)))
 
+class RecordActions(ActionBase):
+    def __init__(self, actions, name="unknown"):
+        ActionBase.__init__(self)
+        self._actions = actions
+        self._name = name
+    def _execute(self, data):
+        global voiceEvents
+        for action in self._actions:
+            voiceEvents.append(('a', (action, data, self._name)))
+
 class DelayedAction(ActionBase):
     action = None
     def __init__(self, action):
@@ -456,60 +466,11 @@ listenMap = {
     # meant to catch everything, but some words need help being recognized
     "<text>":                           RecordDictation("%(text)s"),
 
-    # copy
-    "lick":                             RecordKey("c-c", "+lick") + MouseSequence("<1,1>*5;<1,-1>*10;<-15,5>"),
-
     # Literals
     "numb <nn>":                        RecordWord("-_%(nn)d"),
 
-    ## Mouse
-
-    # left button
-    "spike":                            RecordAction(Mouse("left"), "+spike"),
-    "spin":                             RecordAction(Mouse("left:2"), "+spin"),
-    "spoon":                            RecordAction(Mouse("left:3"), "+spoon"),
-
-    "spook": (                          RecordAction(Mouse("left:down"), "+spook") +
-                                        RecordAction(DelayedAction(Mouse("left:up")))),
-
-    "bye spook": (                       RecordAction(
-                                            Mouse("left, left:down"),
-                                            "+bi-spook") +
-                                        RecordAction(DelayedAction(Mouse("left:up")))
-                                            ),
-
-    "tri spook": (                      RecordAction(
-                                            Mouse("left:2, left:down"),
-                                            "+tri-spook") +
-                                        RecordAction(DelayedAction(Mouse("left:up")))
-                                            ),
-
-    # right button
-    "flike":                            RecordAction(Mouse("right"), "flike"),
-    "flin":                             RecordAction(Mouse("right:2"), "flin"),
-    # conflict floon/loon
-#    "floon":                            RecordAction(Mouse("right:3"), "floon"),
-
-    "fluk": (                           RecordAction(
-                                            DelayedAction(Mouse("right:up"))) +
-                                        RecordAction(Mouse("right:down"), "fluk")),
-
-    # middle button
-    "dike":                             RecordAction(Mouse("middle"), "dike"),
-    # conflict din/in
-#    "din":                              RecordAction(Mouse("middle:2"), "din"),
-    "dune":                             RecordAction(Mouse("middle:3"), "+dune"),
-
-    # conflict: dupe
-#    "duke": (                           RecordAction(
-#                                            DelayedAction(Mouse("middle:up")), "duke") +
-#                                        RecordAction(Mouse("middle:down"), "duke2")),
-
     # window navigation
     "list leaps":                       Function(lambda : FocusWindow.ls()),
-    "leap <n>": (                       RecordKey("alt:down", "+leap") +
-                                        RecordKey("tab/4:%(n)d/4") +
-                                        RecordKey("alt:up")),
 }
 
 listenMap.update([
@@ -527,10 +488,37 @@ listenMap.update([
     for sound, script
     in soundsLike.items()])
 
+def createAction(scriptCommand):
+    if scriptCommand[0:2] == "K:":
+        return Key(scriptCommand[2:])
+    elif scriptCommand[0:3] == "MS:":
+        return MouseSequence(scriptCommand[3:])
+    elif scriptCommand[0:2] == "M:":
+        return Mouse(scriptCommand[2:], sound)
+    elif scriptCommand[0:2] == "D:":
+        action = createAction(scriptCommand[2:])
+        if action:
+            return DelayedAction(action)
+    else:
+        print "Special command not recognized:", scriptCommand
+
+def createSpecialSequence(sound, script):
+    actions = []
+    if type(script) == str:
+        action = createAction(script)
+        if action:
+            actions.append(action)
+    elif type(script) == list:
+        for scriptCommand in script:
+            action = createAction(scriptCommand)
+            if action:
+                actions.append(action)
+    return RecordActions(actions, sound)
+
 listenMap.update([
-    (sound, RecordKey(script, script))
+    (sound, createSpecialSequence(script, script))
     for sound, script
-    in keyClicks.items()])
+    in specialWords.items()])
 
 # commandWords overwrite plainWords
 listenMap.update([
@@ -707,4 +695,6 @@ def unload():
     global grammar
     if grammar: grammar.unload()
     grammar = None
+
+print "super.py Done loading"
 

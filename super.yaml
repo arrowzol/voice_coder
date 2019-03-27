@@ -27,35 +27,79 @@ mangles:
         delimiter: .
 
 
-keys:
-    # special characters (meta words)
-    "kick [<n>]": "tab:%(n)d"
-    "gap [<n>]": "space:%(n)d"
+special:
+    ## Mouse movements
 
-    # Special Keys
-    "sleigh [<n>]": "c-c:%(n)d"
-    "func <n>": "f%(n)d"
+    # left button
+    "spike": "M:left"
+    "spin": "M:left:2"
+    "spoon": "M:left:3"
+    "spook":
+        - "M:left:down"
+        - "D:M:left:up"
+    "bye spook":
+        - "M:left,left:down"
+        - "D:M:left:up"
+    "tri spook":
+        - "M:left:2,left:down"
+        - "D:M:left:up"
+
+    # right button
+    "flike": "M:right"
+    "flin": "M:right:2"
+#    "floon": "M:right:3" # conflict floon/loon
+
+    "fluk":
+        - "M:right:down"
+        - "D:M:right:up"
+
+    # middle button
+    "dike": "M:middle"
+#    "din": "M:middle:2" # conflict din/in
+    "dune": "M:middle:3"
+
+#    "duke": # conflict: dupe
+#        - "M:middle:down"
+#        - "D:M:middle:up"
+
+    ## window navigation
+    "leap <n>":
+        - "K:alt:down"
+        - "K:tab/4:%(n)d/4"
+        - "K:alt:up"
+
+    # special characters with repeat
+    "kick [<n>]": "K:tab:%(n)d"
+    "gap [<n>]": "K:space:%(n)d"
+    "sleigh [<n>]": "K:c-c:%(n)d"
+
+    # special keys
+    "func <n>": "K:f%(n)d"
 
     # Copy paste
-    "barf [<n>]": "c-v:%(n)d"
-    "chomp": "c-x"
+    "lick":
+        - "K:c-c"
+        - "MS:<1,1>*5;<1,-1>*10;<-15,5>"
+
+    "barf [<n>]": "K:c-v:%(n)d"
+    "chomp": "K:c-x"
 
     # Undo/Redo backspace
-    "strike [<n>]": "c-z:%(n)d"
-    "whack [<n>]": "backspace:%(n)d"
-    "chop [<n>]": "backspace:%(n)d"
-    "wax [<n>]": "delete:%(n)d"
-    "chip [<n>]": "delete:%(n)d"
+    "strike [<n>]": "K:c-z:%(n)d"
+    "whack [<n>]": "K:backspace:%(n)d"
+    "chop [<n>]": "K:backspace:%(n)d"
+    "wax [<n>]": "K:delete:%(n)d"
+    "chip [<n>]": "K:delete:%(n)d"
 
     # Navigation keys
-    "leap up [<n>]": "up:%(n)d"
-    "leap down [<n>]": "down:%(n)d"
-    "leap right [<n>]": "right:%(n)d"
-    "leap left [<n>]": "left:%(n)d"
-    "leap top": "c-home"
-    "leap bottom": "c-end"
-    "page down [<n>]": "pgdown:%(n)d"
-    "page up [<n>]": "pgup:%(n)d"
+    "leap up [<n>]": "K:up:%(n)d"
+    "leap down [<n>]": "K:down:%(n)d"
+    "leap right [<n>]": "K:right:%(n)d"
+    "leap left [<n>]": "K:left:%(n)d"
+    "leap top": "K:c-home"
+    "leap bottom": "K:c-end"
+    "page down [<n>]": "K:pgdown:%(n)d"
+    "page up [<n>]": "K:pgup:%(n)d"
 
 
 windowLeaps:
@@ -186,9 +230,9 @@ substitutions:
     - {from: ["+conjunction"], to: "+and"} # end/and
 
     # vim
-    - {from: ["-vim ", "+diff"], to: "vimdiff "}
-    - {from: ["-vim ", "+quit"], to: "-_:q\r"}
-    - {from: ["-vim ", "+save"], to: "-_:wq\r"}
+    - {from: ["+vim ", "+diff"], to: "vimdiff "}
+    - {from: ["+vim ", "+quit"], to: "-_:q\r"}
+    - {from: ["+vim ", "+save"], to: "-_:wq\r"}
 
     # Python
     - {from: ["+dot", "+pie"], to: "-_.py "}
@@ -206,6 +250,7 @@ soundsLike:
     "you till": "+util"
     "you are el": "+url"
     "S. S. L.": "+ssl"
+    "E. D. I.": "+EDI"
     "H. T. T. P.": "+http"
     "H. T. T. P. S.": "+https"
     "yah mole": "+yaml"
@@ -285,6 +330,7 @@ soundsLike:
     "def": "-_def "
     "el if": "-_elif "
     "pie charm": "+pycharm"
+    "stir type": "+str"
 
     # Hadoop
 #    "ha dupe": "hadoop "
@@ -539,6 +585,7 @@ words:
     - tuple
     - type
     - types
+    - unix
     - unstacked
     - velocity
     - vendor
@@ -552,4 +599,6 @@ words:
     - with
     - work
     - zip
+    - mouse
+    - script
 
