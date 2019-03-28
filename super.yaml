@@ -9,6 +9,10 @@ escape: simon
 
 replay: rip
 
+releaseModifiers: zook
+
+exit: snooze
+
 
 mangles:
     "_camel":
@@ -28,12 +32,18 @@ mangles:
 
 
 special:
+    # hold down keys
+    "hold jab":
+        - "K:control:down"
+        - "D:K:control:up"
+
     ## Mouse movements
 
     # left button
     "spike": "M:left"
     "spin": "M:left:2"
     "spoon": "M:left:3"
+
     "spook":
         - "M:left:down"
         - "D:M:left:up"
@@ -230,16 +240,21 @@ substitutions:
     - {from: ["+conjunction"], to: "+and"} # end/and
 
     # vim
-    - {from: ["+vim ", "+diff"], to: "vimdiff "}
-    - {from: ["+vim ", "+quit"], to: "-_:q\r"}
-    - {from: ["+vim ", "+save"], to: "-_:wq\r"}
+    - {from: ["-vim ", "+diff"], to: "vimdiff "}
+    - {from: ["-vim ", "+quit"], to: "-_:q\r"}
+    - {from: ["-vim ", "+save"], to: "-_:wq\r"}
 
     # Python
     - {from: ["+dot", "+pie"], to: "-_.py "}
     - {from: ["+num", "+pie"], to: "+numpy "}
 
+    # people's names
+
 
 soundsLike:
+    # Literals
+    "numb <nn>": "-_%(nn)d"
+
     # for word mangling
     "dee space": "_despace"
     "dot word": "_dotword"
@@ -601,4 +616,5 @@ words:
     - zip
     - mouse
     - script
-
+    - clear
+    - boiler

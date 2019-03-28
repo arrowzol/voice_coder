@@ -22,6 +22,70 @@ def flatten(l):
         r.extend(ll)
     return r
 
+########################################
+# classes used to record actions
+########################################
+
+class RecordWord(Text):
+    def _parse_spec(self, spec):
+        return spec
+    def _execute_events(self, spec):
+        global voiceEvents
+        voiceEvents.append(('w', [spec]))
+
+class RecordDictation(Text):
+    def _parse_spec(self, spec):
+        return spec
+    def _execute_events(self, spec):
+        global voiceEvents
+        voiceEvents.append(('w', ["+" + word for word in spec.split(" ")]))
+
+class RecordAction(ActionBase):
+    def __init__(self, action, name="unknown"):
+        ActionBase.__init__(self)
+        self._action = action
+        self._name = name
+    def _execute(self, data):
+        global voiceEvents
+        voiceEvents.append(('a', (self._action, data, self._name)))
+
+class RecordActions(ActionBase):
+    def __init__(self, actions, name="unknown"):
+        ActionBase.__init__(self)
+        self._actions = actions
+        self._name = name
+    def _execute(self, data):
+        global voiceEvents
+        for action in self._actions:
+            # TODO: record the name of each unique action
+            voiceEvents.append(('a', (action, data, self._name)))
+
+class DelayedAction(ActionBase):
+    action = None
+    def __init__(self, action):
+        ActionBase.__init__(self)
+        self.__action = action
+    def _execute(self, data):
+        global undoSoon, undoHold
+        if undoSoon:
+            undoHold.extend(undoSoon)
+            undoSoon = []
+        if DelayedAction.action:
+            DelayedAction.action._execute()
+        DelayedAction.action = self.__action
+        return True
+
+class ReleaseModifiers(ActionBase):
+    def _execute(self, data):
+        global undoHold, wasTrailingSpace
+        wasTrailingSpace = False
+        if DelayedAction.action:
+            DelayedAction.action._execute()
+            DelayedAction.action = None
+            time.sleep(0.1)
+        if undoHold:
+            keyboard.keyboard.send_keyboard_events(undoHold)
+            undoHold = []
 
 ########################################
 ## read configuration data
@@ -35,6 +99,9 @@ escapeWordPlus = "+" + escapeWord
 
 replayWord = yaml_data['replay']
 replayWordPlus = "+" + replayWord
+
+releaseModifiersWord = yaml_data['releaseModifiers']
+exitWord = yaml_data['exit']
 
 substitutions = {}
 for f, t in [(substitute['from'], substitute['to']) for substitute in yaml_data['substitutions']]:
@@ -71,6 +138,82 @@ plainWords.extend((
 plainWords.append(escapeWord)
 plainWords.append(replayWord)
 plainWords = set(plainWords)
+
+########################################
+# convert configuration and to listenMap
+########################################
+
+listenMap = {
+    # quick exit
+    exitWord:                           Function(lambda : en.exit_now()),
+
+    releaseModifiersWord:               ReleaseModifiers(),
+
+    # dictation
+    # meant to catch everything, but some words need help being recognized
+    "<text>":                           RecordDictation("%(text)s"),
+
+    # window navigation
+    "list leaps":                       Function(lambda : FocusWindow.ls()),
+}
+
+listenMap.update([
+    (wordWithPlus[1:], RecordWord(wordWithPlus))
+    for wordWithPlus
+    in substitutions.keys()])
+
+listenMap.update([
+    (word, RecordWord("+" + word))
+    for word
+    in plainWords])
+
+listenMap.update([
+    (sound, RecordWord(script))
+    for sound, script
+    in soundsLike.items()])
+
+def createAction(scriptCommand):
+    if scriptCommand[0:2] == "K:":
+        return Key(scriptCommand[2:])
+    elif scriptCommand[0:3] == "MS:":
+        return MouseSequence(scriptCommand[3:])
+    elif scriptCommand[0:2] == "M:":
+        return Mouse(scriptCommand[2:], scriptCommand[2:])
+    elif scriptCommand[0:2] == "D:":
+        action = createAction(scriptCommand[2:])
+        if action:
+            return DelayedAction(action)
+    else:
+        print "Special command not recognized:", scriptCommand
+
+def createSpecialSequence(sound, script):
+    actions = []
+    if type(script) == str:
+        action = createAction(script)
+        if action:
+            actions.append(action)
+    elif type(script) == list:
+        for scriptCommand in script:
+            action = createAction(scriptCommand)
+            if action:
+                actions.append(action)
+    return RecordActions(actions, sound)
+
+listenMap.update([
+    (sound, createSpecialSequence(script, script))
+    for sound, script
+    in specialWords.items()])
+
+# commandWords overwrite plainWords
+listenMap.update([
+    (word, RecordWord("-" + word + " "))
+    for word
+    in commandWords])
+
+listenMap.update([
+    ("leap " + words, RecordAction(FocusWindow(title=theTitle)))
+    for words, theTitle
+    in windowLeaps.items()])
 
 ########################################
 ## stages of processing speach
@@ -233,23 +376,21 @@ def processPhrase(words):
         wasTrailingSpace = True
     return events
 
-def hide(word):
-    if word and word.startswith('*'):
-        return '*'*(len(word)-1)
-    else:
-        return word
-
 def processText(text):
     words = flatten(text)
-    print("RAW WORDS: [" + "|".join([repr(str(hide(word)))[1:-1] for word in words]) + "]")
+    print("RAW WORDS: [" + "|".join([repr(str(word))[1:-1] for word in words]) + "]")
     words = substituteWords(words)
-    print("META WORDS: [" + "|".join([repr(str(hide(word)))[1:-1] for word in words]) + "]")
+    print("META WORDS: [" + "|".join([repr(str(word))[1:-1] for word in words]) + "]")
     phrases = phraseSplit(words)
 #    print "PHRASES:"
 #    print "".join(["  [" + "|".join([repr(str(word))[1:-1] for word in words]) + "]\n" for words in phrases]),
     events = flatten([processPhrase(phrase) for phrase in phrases])
     keyboard.keyboard.send_keyboard_events(events)
     return events
+
+########################################
+# macros
+########################################
 
 eventHistory = []
 
@@ -383,153 +524,9 @@ def processVoiceEvents():
         voiceEvents = []
         escaped = False
 
-class RecordKey(Key):
-    def __init__(self, action, name=None):
-        self._name = name
-        Key.__init__(self, action)
-    def _parse_spec(self, spec):
-        if "_name" in self.__dict__:
-            return (spec, Key._parse_spec(self, spec), self._name)
-        else:
-            return (spec, Key._parse_spec(self, spec), "x")
-    def _execute_events(self, specEventsName):
-        global voiceEvents
-        voiceEvents.append(('k', specEventsName))
-
-class RecordWord(Text):
-    def _parse_spec(self, spec):
-        return spec
-    def _execute_events(self, spec):
-        global voiceEvents
-        voiceEvents.append(('w', [spec]))
-
-class RecordDictation(Text):
-    def _parse_spec(self, spec):
-        return spec
-    def _execute_events(self, spec):
-        global voiceEvents
-        voiceEvents.append(('w', ["+" + word for word in spec.split(" ")]))
-
-class RecordAction(ActionBase):
-    def __init__(self, action, name="unknown"):
-        ActionBase.__init__(self)
-        self._action = action
-        self._name = name
-    def _execute(self, data):
-        global voiceEvents
-        voiceEvents.append(('a', (self._action, data, self._name)))
-
-class RecordActions(ActionBase):
-    def __init__(self, actions, name="unknown"):
-        ActionBase.__init__(self)
-        self._actions = actions
-        self._name = name
-    def _execute(self, data):
-        global voiceEvents
-        for action in self._actions:
-            voiceEvents.append(('a', (action, data, self._name)))
-
-class DelayedAction(ActionBase):
-    action = None
-    def __init__(self, action):
-        ActionBase.__init__(self)
-        self.__action = action
-    def _execute(self, data):
-        global undoSoon, undoHold
-        if undoSoon:
-            undoHold.extend(undoSoon)
-            undoSoon = []
-        if DelayedAction.action:
-            DelayedAction.action._execute()
-        DelayedAction.action = self.__action
-        return True
-
-class ReleaseModifiers(ActionBase):
-    def _execute(self, data):
-        global undoHold, wasTrailingSpace
-        wasTrailingSpace = False
-        if DelayedAction.action:
-            DelayedAction.action._execute()
-            DelayedAction.action = None
-            time.sleep(0.1)
-        if undoHold:
-            keyboard.keyboard.send_keyboard_events(undoHold)
-            undoHold = []
-
-listenMap = {
-    # quick exit
-    "snooze":                           Function(lambda : en.exit_now()),
-
-    "zook":                             ReleaseModifiers(),
-
-    # dictation
-    # meant to catch everything, but some words need help being recognized
-    "<text>":                           RecordDictation("%(text)s"),
-
-    # Literals
-    "numb <nn>":                        RecordWord("-_%(nn)d"),
-
-    # window navigation
-    "list leaps":                       Function(lambda : FocusWindow.ls()),
-}
-
-listenMap.update([
-    (wordWithPlus[1:], RecordWord(wordWithPlus))
-    for wordWithPlus
-    in substitutions.keys()])
-
-listenMap.update([
-    (word, RecordWord("+" + word))
-    for word
-    in plainWords])
-
-listenMap.update([
-    (sound, RecordWord(script))
-    for sound, script
-    in soundsLike.items()])
-
-def createAction(scriptCommand):
-    if scriptCommand[0:2] == "K:":
-        return Key(scriptCommand[2:])
-    elif scriptCommand[0:3] == "MS:":
-        return MouseSequence(scriptCommand[3:])
-    elif scriptCommand[0:2] == "M:":
-        return Mouse(scriptCommand[2:], sound)
-    elif scriptCommand[0:2] == "D:":
-        action = createAction(scriptCommand[2:])
-        if action:
-            return DelayedAction(action)
-    else:
-        print "Special command not recognized:", scriptCommand
-
-def createSpecialSequence(sound, script):
-    actions = []
-    if type(script) == str:
-        action = createAction(script)
-        if action:
-            actions.append(action)
-    elif type(script) == list:
-        for scriptCommand in script:
-            action = createAction(scriptCommand)
-            if action:
-                actions.append(action)
-    return RecordActions(actions, sound)
-
-listenMap.update([
-    (sound, createSpecialSequence(script, script))
-    for sound, script
-    in specialWords.items()])
-
-# commandWords overwrite plainWords
-listenMap.update([
-    (word, RecordWord("-" + word + " "))
-    for word
-    in commandWords])
-
-listenMap.update([
-    ("leap " + words, RecordAction(FocusWindow(title=theTitle)))
-    for words, theTitle
-    in windowLeaps.items()])
+########################################
+# boiler plate code
+########################################
 
 config            = Config("super edit")
 config.cmd        = Section("Language section")
